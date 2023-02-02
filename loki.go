@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	DefaultProtobufRatio = 0.9
+	DefaultProtobufRatio = 1.0
 	DefaultPushTimeout   = 10000
 	DefaultUserAgent     = "xk6-loki/0.0.1"
 )
@@ -123,25 +123,32 @@ func (r *Loki) config(c goja.ConstructorCall) *goja.Object {
 		common.Throw(rt, errors.New("Client constructor needs to be called in the init context"))
 	}
 	urlString := c.Argument(0).String()
+	clientID := c.Argument(1).String()
+	clientSecret := c.Argument(2).String()
+	authURL := c.Argument(3).String()
 
-	timeoutMs := int(c.Argument(1).ToInteger())
+	if clientID == "undefined" || clientSecret == "undefined" || authURL == "undefined" {
+		common.Throw(rt, fmt.Errorf("oauth credentials not provided, make sure you have specied clientID, clientSecret and authURL"))
+	}
+
+	timeoutMs := int(c.Argument(4).ToInteger())
 	if timeoutMs == 0 {
 		timeoutMs = DefaultPushTimeout
 	}
 
-	protobufRatio := c.Argument(2).ToFloat()
+	protobufRatio := c.Argument(5).ToFloat()
 	if protobufRatio == 0 {
 		protobufRatio = DefaultProtobufRatio
 	}
 
 	var cardinalities map[string]int
-	if err := rt.ExportTo(c.Argument(3), &cardinalities); err != nil {
-		common.Throw(rt, fmt.Errorf("Config constructor expects map of string to integers as forth argument"))
+	if err := rt.ExportTo(c.Argument(6), &cardinalities); err != nil {
+		common.Throw(rt, fmt.Errorf("Config constructor expects map of string to integers as six argument"))
 	}
 
 	var labels LabelPool
-	if err := rt.ExportTo(c.Argument(4), &labels); err != nil {
-		common.Throw(rt, fmt.Errorf("Config constructor expects Labels as fifth argument"))
+	if err := rt.ExportTo(c.Argument(7), &labels); err != nil {
+		common.Throw(rt, fmt.Errorf("Config constructor expects Labels as eight argument"))
 	}
 
 	initEnv.Logger.Debug(fmt.Sprintf("url=%s timeoutMs=%d protobufRatio=%f cardinalities=%v", urlString, timeoutMs, protobufRatio, cardinalities))
@@ -151,10 +158,6 @@ func (r *Loki) config(c goja.ConstructorCall) *goja.Object {
 	u, err := url.Parse(urlString)
 	if err != nil {
 		panic(err)
-	}
-
-	if u.User.Username() == "" {
-		initEnv.Logger.Warn("Running in multi-tenant-mode. Each VU has its own X-Scope-OrgID")
 	}
 
 	if len(labels) == 0 {
@@ -171,10 +174,13 @@ func (r *Loki) config(c goja.ConstructorCall) *goja.Object {
 	config := &Config{
 		URL:           *u,
 		UserAgent:     DefaultUserAgent,
-		TenantID:      u.User.Username(),
+		TenantID:      clientID,
 		Timeout:       time.Duration(timeoutMs) * time.Millisecond,
 		Labels:        labels,
 		ProtobufRatio: protobufRatio,
+		ClientID:      clientID,
+		ClientSecret:  clientSecret,
+		AuthUrl:       authURL,
 	}
 
 	return rt.ToValue(config).ToObject(rt)
@@ -191,10 +197,11 @@ func (r *Loki) client(c goja.ConstructorCall) *goja.Object {
 		common.Throw(rt, fmt.Errorf("Client constructor expect Config as it's argument"))
 	}
 	return rt.ToValue(&Client{
-		client:  &http.Client{},
-		cfg:     config,
-		vu:      r.vu,
-		metrics: r.metrics,
+		client:       &http.Client{},
+		cfg:          config,
+		vu:           r.vu,
+		metrics:      r.metrics,
+		oauth2Client: NewOAuth2(*config),
 	}).ToObject(rt)
 }
 

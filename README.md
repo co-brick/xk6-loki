@@ -2,6 +2,9 @@
 
 **A k6 extension for pushing logs to Loki.**
 
+Note that this is modified version to match Cobrick requirements and differs from upstream vesion.
+Query part is not used at the moment and has not been tested.
+
 
 ## Getting started
 
@@ -37,24 +40,27 @@ import loki from 'k6/x/loki';
 
 on top of your test file.
 
-### Class `Config(url, [timeout, ratio, cardinality, labels])`
+### Class `Config(url, clientID, clientSecret, authURL, [timeout, ratio, cardinality, labels])`
 
 The class `Config` holds configuration for the Loki client. The constructor
 takes the following arguments:
 
-| argument    | type    | description | default |
-| ----------- | ------- | ----------- | ------- |
-| url         | string  | The full URL to Loki in format `[${scheme}://][${tenant}[:${token}]]@${host}[:${port}]` | - |
-| timeout     | integer | Request timeout in milliseconds, e.g. `10000` for 10s | 10000 |
-| ratio       | float   | The ratio between JSON and Protobuf encoded batch requests for pushing logs<br>Must be a number between (including) 0 (100% JSON) and 1 (100% Protobuf)<br>This is only relevant for write scenarios.| 0.9 |
-| cardinality | object  | The cardinality (unique values) for [labels](#labels), where the object key is the name of the label and the value is the maximum amount of different values it may have. | null |
-| labels      | Labels  | A Labels object that contains custom label definitions. | null |
+| argument     | type    | description                                                                                                                                                                                           | default |
+|--------------|---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
+| url          | string  | The full URL to Loki in format `[${scheme}://][${tenant}[:${token}]]@${host}[:${port}]`                                                                                                               | -       |
+| clientID     | string  | ouath2 client ID                                                                                                                                                                                      | -       |
+| clientSecret | string  | ouath2 client secret                                                                                                                                                                                  | -       |
+| authURL      | string  | ouath2 server URL for client login                                                                                                                                                                    | -       |
+| timeout      | integer | Request timeout in milliseconds, e.g. `10000` for 10s                                                                                                                                                 | 10000   |
+| ratio        | float   | The ratio between JSON and Protobuf encoded batch requests for pushing logs<br>Must be a number between (including) 0 (100% JSON) and 1 (100% Protobuf)<br>This is only relevant for write scenarios. | 0.9     |
+| cardinality  | object  | The cardinality (unique values) for [labels](#labels), where the object key is the name of the label and the value is the maximum amount of different values it may have.                             | null    |
+| labels       | Labels  | A Labels object that contains custom label definitions.                                                                                                                                               | null    |
 
 **Example:**
 
 ```js
 import loki from 'k6/x/loki';
-let conf = loki.Config("localhost:3100");
+let conf = loki.Config("https://stage.aiops-central.com", "load-test", "secret", "https://stage.aiops-central.com/client/login");
 ```
 
 ### Class `Labels(labels)`

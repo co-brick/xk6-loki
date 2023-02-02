@@ -9,7 +9,7 @@ k6: $(GO_FILES)
 		--replace "google.golang.org/grpc=google.golang.org/grpc@v1.45.0" \
 		--replace "github.com/hashicorp/consul=github.com/hashicorp/consul@v1.5.1" \
 		--replace "github.com/go-kit/log=github.com/dannykopping/go-kit-log@v0.2.2-0.20221002180827-5591c1641b6b" \
-	  --with "github.com/grafana/xk6-loki=$(PWD)"
+	  --with "k6/x/loki=$(PWD)"
 
 go.sum: $(GO_FILES) go.mod
 	go mod tidy

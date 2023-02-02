@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"net/http"
 	"net/url"
 	"path"
@@ -29,11 +28,12 @@ const (
 )
 
 type Client struct {
-	vu      modules.VU
-	client  *http.Client
-	logger  logrus.FieldLogger
-	cfg     *Config
-	metrics lokiMetrics
+	vu           modules.VU
+	client       *http.Client
+	logger       logrus.FieldLogger
+	cfg          *Config
+	metrics      lokiMetrics
+	oauth2Client *oauth2Client
 }
 
 type Config struct {
@@ -43,6 +43,9 @@ type Config struct {
 	TenantID      string
 	Labels        LabelPool
 	ProtobufRatio float64
+	ClientID      string
+	ClientSecret  string
+	AuthUrl       string
 }
 
 func (c *Client) InstantQuery(logQuery string, limit int) (httpext.Response, error) {
@@ -194,8 +197,14 @@ func (c *Client) sendQuery(q *Query) (httpext.Response, error) {
 	r.Header.Set("Accept", ContentTypeJSON)
 	if c.cfg.TenantID != "" {
 		r.Header.Set("X-Scope-OrgID", c.cfg.TenantID)
-	} else {
-		r.Header.Set("X-Scope-OrgID", fmt.Sprintf("%s-%d", TenantPrefix, state.VUID))
+	}
+
+	if c.oauth2Client != nil {
+		token, err := c.oauth2Client.GetAuthToken()
+		if err != nil {
+			return *httpResp, err
+		}
+		r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 	}
 
 	url, _ := httpext.NewURL(urlString, path)
@@ -250,19 +259,14 @@ func (c *Client) pushBatch(batch *Batch) (httpext.Response, error) {
 	var buf []byte
 	var err error
 
-	// Use snappy encoded Protobuf for 90% of the requests
-	// Use JSON encoding for 10% of the requests
-	encodeSnappy := rand.Float64() < c.cfg.ProtobufRatio
-	if encodeSnappy {
-		buf, _, err = batch.encodeSnappy()
-	} else {
-		buf, _, err = batch.encodeJSON()
-	}
+	// Use snappy encoded Protobuf for 100% of the requests
+	buf, _, err = batch.encodeSnappy()
+
 	if err != nil {
 		return *httpext.NewResponse(), errors.Wrap(err, "failed to encode payload")
 	}
 
-	res, err := c.send(state, buf, encodeSnappy)
+	res, err := c.send(state, buf, true)
 	if err != nil {
 		return *httpext.NewResponse(), errors.Wrap(err, "push request failed")
 	}
@@ -276,7 +280,7 @@ func (c *Client) pushBatch(batch *Batch) (httpext.Response, error) {
 
 func (c *Client) send(state *lib.State, buf []byte, useProtobuf bool) (httpext.Response, error) {
 	httpResp := httpext.NewResponse()
-	path := "/loki/api/v1/push"
+	path := "/api/v1/push"
 	r, err := http.NewRequest(http.MethodPost, c.cfg.URL.String()+path, nil)
 	if err != nil {
 		return *httpResp, err
@@ -286,9 +290,15 @@ func (c *Client) send(state *lib.State, buf []byte, useProtobuf bool) (httpext.R
 	r.Header.Set("Accept", ContentTypeJSON)
 	if c.cfg.TenantID != "" {
 		r.Header.Set("X-Scope-OrgID", c.cfg.TenantID)
-	} else {
-		r.Header.Set("X-Scope-OrgID", fmt.Sprintf("%s-%d", TenantPrefix, state.VUID))
 	}
+	if c.oauth2Client != nil {
+		token, err := c.oauth2Client.GetAuthToken()
+		if err != nil {
+			return *httpResp, err
+		}
+		r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	}
+
 	if useProtobuf {
 		r.Header.Set("Content-Type", ContentTypeProtobuf)
 		r.Header.Add("Content-Encoding", ContentEncodingSnappy)
