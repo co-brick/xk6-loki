@@ -123,31 +123,32 @@ func (r *Loki) config(c goja.ConstructorCall) *goja.Object {
 		common.Throw(rt, errors.New("Client constructor needs to be called in the init context"))
 	}
 	urlString := c.Argument(0).String()
-	clientID := c.Argument(1).String()
-	clientSecret := c.Argument(2).String()
-	authURL := c.Argument(3).String()
+	tenantID := c.Argument(1).String()
+	clientID := c.Argument(2).String()
+	clientSecret := c.Argument(3).String()
+	authURL := c.Argument(4).String()
 
 	if clientID == "undefined" || clientSecret == "undefined" || authURL == "undefined" {
 		common.Throw(rt, fmt.Errorf("oauth credentials not provided, make sure you have specied clientID, clientSecret and authURL"))
 	}
 
-	timeoutMs := int(c.Argument(4).ToInteger())
+	timeoutMs := int(c.Argument(5).ToInteger())
 	if timeoutMs == 0 {
 		timeoutMs = DefaultPushTimeout
 	}
 
-	protobufRatio := c.Argument(5).ToFloat()
+	protobufRatio := c.Argument(6).ToFloat()
 	if protobufRatio == 0 {
 		protobufRatio = DefaultProtobufRatio
 	}
 
 	var cardinalities map[string]int
-	if err := rt.ExportTo(c.Argument(6), &cardinalities); err != nil {
+	if err := rt.ExportTo(c.Argument(7), &cardinalities); err != nil {
 		common.Throw(rt, fmt.Errorf("Config constructor expects map of string to integers as six argument"))
 	}
 
 	var labels LabelPool
-	if err := rt.ExportTo(c.Argument(7), &labels); err != nil {
+	if err := rt.ExportTo(c.Argument(8), &labels); err != nil {
 		common.Throw(rt, fmt.Errorf("Config constructor expects Labels as eight argument"))
 	}
 
@@ -174,7 +175,7 @@ func (r *Loki) config(c goja.ConstructorCall) *goja.Object {
 	config := &Config{
 		URL:           *u,
 		UserAgent:     DefaultUserAgent,
-		TenantID:      clientID,
+		TenantID:      tenantID,
 		Timeout:       time.Duration(timeoutMs) * time.Millisecond,
 		Labels:        labels,
 		ProtobufRatio: protobufRatio,
