@@ -2,6 +2,7 @@ package loki
 
 import (
 	"fmt"
+	"github.com/grafana/loki/pkg/logproto"
 	"math/rand"
 	"os"
 	"strconv"
@@ -11,7 +12,6 @@ import (
 	fake "github.com/brianvoe/gofakeit/v6"
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
-	"github.com/grafana/loki/pkg/logproto"
 	json "github.com/mailru/easyjson"
 	"github.com/mingrammer/flog/flog"
 	"github.com/prometheus/common/model"
@@ -80,6 +80,34 @@ func (b *Batch) encodeJSON() ([]byte, int, error) {
 	return buf, entriesCount, nil
 }
 
+func (b *Batch) encodeCobrick() ([]byte, int, error) {
+	req, entriesCount := b.createCobrickWriteRequest()
+	buf, err := proto.Marshal(req)
+	if err != nil {
+		return nil, 0, err
+	}
+	buf = snappy.Encode(nil, buf)
+	return buf, entriesCount, nil
+}
+
+func (b *Batch) createCobrickWriteRequest() (*CompressedLogs, int) {
+	req := CompressedLogs{
+		Logs: make([]*CompressedLog, 0, len(b.Streams)),
+	}
+
+	entriesCount := 0
+	for _, stream := range b.Streams {
+		for _, e := range stream.Entries {
+			req.Logs = append(req.Logs, &CompressedLog{
+				Labels:  stream.Labels,
+				LogVars: entriesToVars(e),
+			})
+			entriesCount += len(stream.Entries)
+		}
+	}
+	return &req, entriesCount
+}
+
 // createJSONPushRequest creates a JSON push payload and returns it, together with
 // number of entries
 func (b *Batch) createJSONPushRequest() (*JSONPushRequest, int) {
@@ -123,6 +151,10 @@ func entriesToValues(entries []logproto.Entry) [][]string {
 		})
 	}
 	return lines
+}
+
+func entriesToVars(ent logproto.Entry) []string {
+	return strings.Split(ent.Line, " ")
 }
 
 // createPushRequest creates a push request and returns it, together with

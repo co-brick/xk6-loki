@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"path"
@@ -259,14 +260,19 @@ func (c *Client) pushBatch(batch *Batch) (httpext.Response, error) {
 	var buf []byte
 	var err error
 
-	// Use snappy encoded Protobuf for 100% of the requests
-	buf, _, err = batch.encodeSnappy()
+	encodeSnappy := rand.Float64() < c.cfg.ProtobufRatio
+	if encodeSnappy {
+		// Use snappy encoded Protobuf for 100% of the requests
+		buf, _, err = batch.encodeSnappy()
+	} else {
+		buf, _, err = batch.encodeCobrick()
+	}
 
 	if err != nil {
 		return *httpext.NewResponse(), errors.Wrap(err, "failed to encode payload")
 	}
 
-	res, err := c.send(state, buf, true)
+	res, err := c.send(state, buf, encodeSnappy)
 	if err != nil {
 		return *httpext.NewResponse(), errors.Wrap(err, "push request failed")
 	}
@@ -278,7 +284,7 @@ func (c *Client) pushBatch(batch *Batch) (httpext.Response, error) {
 	return res, err
 }
 
-func (c *Client) send(state *lib.State, buf []byte, useProtobuf bool) (httpext.Response, error) {
+func (c *Client) send(state *lib.State, buf []byte, encodeSnappy bool) (httpext.Response, error) {
 	httpResp := httpext.NewResponse()
 	path := "/api/v1/push"
 	r, err := http.NewRequest(http.MethodPost, c.cfg.URL.String()+path, nil)
@@ -299,11 +305,12 @@ func (c *Client) send(state *lib.State, buf []byte, useProtobuf bool) (httpext.R
 		r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 	}
 
-	if useProtobuf {
+	if encodeSnappy {
 		r.Header.Set("Content-Type", ContentTypeProtobuf)
 		r.Header.Add("Content-Encoding", ContentEncodingSnappy)
 	} else {
-		r.Header.Set("Content-Type", ContentTypeJSON)
+		r.Header.Set("Content-Type", ContentTypeProtobuf)
+		r.Header.Add("Content-Encoding", "cobrick")
 	}
 
 	url, _ := httpext.NewURL(c.cfg.URL.String()+path, path)

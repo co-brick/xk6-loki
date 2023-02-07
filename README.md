@@ -2,7 +2,7 @@
 
 **A k6 extension for pushing logs to Loki.**
 
-Note that this is modified version to match Cobrick requirements and differs from upstream vesion.
+Note that this is modified version to match Cobrick requirements and differs from upstream version.
 Query part is not used at the moment and has not been tested.
 
 

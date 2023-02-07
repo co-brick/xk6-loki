@@ -15,6 +15,7 @@ require (
 	github.com/sirupsen/logrus v1.9.0
 	go.k6.io/k6 v0.41.0
 	golang.org/x/oauth2 v0.4.0
+	google.golang.org/protobuf v1.28.1
 )
 
 require (
@@ -108,7 +109,6 @@ require (
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20220815135757-37a418bb8959 // indirect
 	google.golang.org/grpc v1.49.0 // indirect
-	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/guregu/null.v3 v3.3.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

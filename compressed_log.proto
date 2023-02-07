@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+option go_package = "github.com/grafana/xk6-loki/loki";
+option java_package = "com.cobrick.aiops.drain.protobuf";
+option java_outer_classname = "CompressedLogsProto";
+
+import "google/protobuf/timestamp.proto";
+
+message CompressedLogs {
+  repeated CompressedLog logs = 1;
+}
+
+message CompressedLog {
+  google.protobuf.Timestamp ts = 1;
+  int64 templateID             = 2;
+  repeated string logVars      = 3;
+  string labels                = 4;
+}
