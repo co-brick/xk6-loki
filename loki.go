@@ -3,6 +3,7 @@ package loki
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"time"
@@ -128,8 +129,8 @@ func (r *Loki) config(c goja.ConstructorCall) *goja.Object {
 	clientSecret := c.Argument(3).String()
 	authURL := c.Argument(4).String()
 
-	if clientID == "undefined" || clientSecret == "undefined" || authURL == "undefined" {
-		common.Throw(rt, fmt.Errorf("oauth credentials not provided, make sure you have specied clientID, clientSecret and authURL"))
+	if clientID == "undefined" && clientSecret == "undefined" && authURL == "undefined" {
+		log.Println("oauth credentials not provided, running without oauth")
 	}
 
 	timeoutMs := int(c.Argument(5).ToInteger())
@@ -197,13 +198,16 @@ func (r *Loki) client(c goja.ConstructorCall) *goja.Object {
 	if !ok {
 		common.Throw(rt, fmt.Errorf("Client constructor expect Config as it's argument"))
 	}
-	return rt.ToValue(&Client{
-		client:       &http.Client{},
-		cfg:          config,
-		vu:           r.vu,
-		metrics:      r.metrics,
-		oauth2Client: NewOAuth2(*config),
-	}).ToObject(rt)
+	cli := &Client{
+		client:  &http.Client{},
+		cfg:     config,
+		vu:      r.vu,
+		metrics: r.metrics,
+	}
+	if config.ClientID != "undefined" && config.ClientSecret != "undefined" && config.AuthUrl != "undefined" {
+		cli.oauth2Client = NewOAuth2(*config)
+	}
+	return rt.ToValue(cli).ToObject(rt)
 }
 
 func (r *Loki) createLabels(c goja.ConstructorCall) *goja.Object {

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"strings"
 	"time"
 
 	"github.com/grafana/loki/pkg/logqlmodel/stats"
@@ -286,8 +287,13 @@ func (c *Client) pushBatch(batch *Batch) (httpext.Response, error) {
 
 func (c *Client) send(state *lib.State, buf []byte, encodeSnappy bool) (httpext.Response, error) {
 	httpResp := httpext.NewResponse()
-	path := "/api/v1/push"
-	r, err := http.NewRequest(http.MethodPost, c.cfg.URL.String()+path, nil)
+	var lokiUrl string
+	if strings.Contains(c.cfg.URL.String(), "/api/v1/push") {
+		lokiUrl = c.cfg.URL.String()
+	} else {
+		lokiUrl = c.cfg.URL.String() + "/api/v1/push"
+	}
+	r, err := http.NewRequest(http.MethodPost, lokiUrl, nil)
 	if err != nil {
 		return *httpResp, err
 	}
@@ -313,7 +319,7 @@ func (c *Client) send(state *lib.State, buf []byte, encodeSnappy bool) (httpext.
 		r.Header.Add("Content-Encoding", "cobrick")
 	}
 
-	url, _ := httpext.NewURL(c.cfg.URL.String()+path, path)
+	url, _ := httpext.NewURL(lokiUrl, "loki")
 	response, err := httpext.MakeRequest(c.vu.Context(), state, &httpext.ParsedHTTPRequest{
 		URL:              &url,
 		Req:              r,
