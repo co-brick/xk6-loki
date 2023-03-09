@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/grafana/loki/pkg/logproto"
 	"math/rand"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -178,20 +177,11 @@ func (c *Client) newBatch(pool LabelPool, numStreams, minBatchSize, maxBatchSize
 		Streams:   make(map[string]*logproto.Stream, numStreams),
 		CreatedAt: time.Now(),
 	}
-	state := c.vu.State()
-
-	hostname, err := os.Hostname()
-	if err != nil {
-		hostname = "localhost"
-	}
 
 	maxSizePerStream := (minBatchSize + rand.Intn(maxBatchSize-minBatchSize)) / numStreams
 
 	for i := 0; i < numStreams; i++ {
 		labels := labelsFromPool(pool)
-		if _, ok := labels[model.InstanceLabel]; !ok {
-			labels[model.InstanceLabel] = model.LabelValue(fmt.Sprintf("vu%d.%s", state.VUID, hostname))
-		}
 		stream := &logproto.Stream{Labels: labels.String()}
 		batch.Streams[stream.Labels] = stream
 
@@ -243,14 +233,30 @@ func newLabelPool(faker *fake.Faker, cardinalities map[string]int) LabelPool {
 		"format": []string{"apache_common", "apache_combined", "apache_error", "rfc3164", "rfc5424", "json", "logfmt"}, // needs to match the available flog formats
 		"os":     []string{"darwin", "linux", "windows"},
 	}
+
+	num := 10
+	var nss []string
 	if n, ok := cardinalities["namespace"]; ok {
-		lb["namespace"] = generateValues(faker.BS, n)
+		num = n
 	}
+	nss = generateValues(faker.BS, num)
+	lb["namespace"] = nss
+	num = 5
 	if n, ok := cardinalities["app"]; ok {
-		lb["app"] = generateValues(faker.AppName, n)
+		num = n
 	}
+	svs := generateValues(fakeAppName(faker), num)
+	lb["app"] = svs
+	var jobs []string
+	for _, ns := range nss {
+		for _, sv := range svs {
+			jobs = append(jobs, fmt.Sprintf("%s/%s", ns, sv))
+		}
+	}
+	lb["job"] = jobs
 	if n, ok := cardinalities["pod"]; ok {
 		lb["pod"] = generateValues(faker.BS, n)
+		lb["container"] = lb["pod"]
 	}
 	if n, ok := cardinalities["language"]; ok {
 		lb["language"] = generateValues(faker.LanguageAbbreviation, n)
@@ -259,4 +265,10 @@ func newLabelPool(faker *fake.Faker, cardinalities map[string]int) LabelPool {
 		lb["word"] = generateValues(faker.Noun, n)
 	}
 	return lb
+}
+
+func fakeAppName(ff *fake.Faker) FakeFunc {
+	return func() string {
+		return strings.Replace(ff.AppName(), " ", "-", -1)
+	}
 }
