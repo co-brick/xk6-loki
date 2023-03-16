@@ -215,6 +215,8 @@ func labelsFromPool(p LabelPool) model.LabelSet {
 	for k, v := range p {
 		ls[k] = model.LabelValue(choice(v))
 	}
+	ls["job"] = model.LabelValue(fmt.Sprintf("%s/%s", ls["namespace"], ls["job"]))
+	ls["container"] = ls["pod"]
 	return ls
 }
 
@@ -234,29 +236,14 @@ func newLabelPool(faker *fake.Faker, cardinalities map[string]int) LabelPool {
 		"os":     []string{"darwin", "linux", "windows"},
 	}
 
-	num := 10
-	var nss []string
 	if n, ok := cardinalities["namespace"]; ok {
-		num = n
+		lb["namespace"] = generateValues(faker.BS, n)
 	}
-	nss = generateValues(faker.BS, num)
-	lb["namespace"] = nss
-	num = 5
 	if n, ok := cardinalities["app"]; ok {
-		num = n
+		lb["job"] = generateValues(fakeAppName(faker), n)
 	}
-	svs := generateValues(fakeAppName(faker), num)
-	lb["app"] = svs
-	var jobs []string
-	for _, ns := range nss {
-		for _, sv := range svs {
-			jobs = append(jobs, fmt.Sprintf("%s/%s", ns, sv))
-		}
-	}
-	lb["job"] = jobs
 	if n, ok := cardinalities["pod"]; ok {
 		lb["pod"] = generateValues(faker.BS, n)
-		lb["container"] = lb["pod"]
 	}
 	if n, ok := cardinalities["language"]; ok {
 		lb["language"] = generateValues(faker.LanguageAbbreviation, n)
