@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/grafana/loki/pkg/logproto"
 	"math/rand"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -178,20 +177,11 @@ func (c *Client) newBatch(pool LabelPool, numStreams, minBatchSize, maxBatchSize
 		Streams:   make(map[string]*logproto.Stream, numStreams),
 		CreatedAt: time.Now(),
 	}
-	state := c.vu.State()
-
-	hostname, err := os.Hostname()
-	if err != nil {
-		hostname = "localhost"
-	}
 
 	maxSizePerStream := (minBatchSize + rand.Intn(maxBatchSize-minBatchSize)) / numStreams
 
 	for i := 0; i < numStreams; i++ {
 		labels := labelsFromPool(pool)
-		if _, ok := labels[model.InstanceLabel]; !ok {
-			labels[model.InstanceLabel] = model.LabelValue(fmt.Sprintf("vu%d.%s", state.VUID, hostname))
-		}
 		stream := &logproto.Stream{Labels: labels.String()}
 		batch.Streams[stream.Labels] = stream
 
@@ -225,6 +215,8 @@ func labelsFromPool(p LabelPool) model.LabelSet {
 	for k, v := range p {
 		ls[k] = model.LabelValue(choice(v))
 	}
+	ls["job"] = model.LabelValue(fmt.Sprintf("%s/%s", ls["namespace"], ls["job"]))
+	ls["container"] = ls["pod"]
 	return ls
 }
 
@@ -243,11 +235,12 @@ func newLabelPool(faker *fake.Faker, cardinalities map[string]int) LabelPool {
 		"format": []string{"apache_common", "apache_combined", "apache_error", "rfc3164", "rfc5424", "json", "logfmt"}, // needs to match the available flog formats
 		"os":     []string{"darwin", "linux", "windows"},
 	}
+
 	if n, ok := cardinalities["namespace"]; ok {
 		lb["namespace"] = generateValues(faker.BS, n)
 	}
 	if n, ok := cardinalities["app"]; ok {
-		lb["app"] = generateValues(faker.AppName, n)
+		lb["job"] = generateValues(fakeAppName(faker), n)
 	}
 	if n, ok := cardinalities["pod"]; ok {
 		lb["pod"] = generateValues(faker.BS, n)
@@ -259,4 +252,10 @@ func newLabelPool(faker *fake.Faker, cardinalities map[string]int) LabelPool {
 		lb["word"] = generateValues(faker.Noun, n)
 	}
 	return lb
+}
+
+func fakeAppName(ff *fake.Faker) FakeFunc {
+	return func() string {
+		return strings.Replace(ff.AppName(), " ", "-", -1)
+	}
 }
