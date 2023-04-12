@@ -191,7 +191,7 @@ func (c *Client) newBatch(pool LabelPool, numStreams, minBatchSize, maxBatchSize
 			common.Throw(c.vu.Runtime(), fmt.Errorf("%s is not a valid log format", logFmt))
 		}
 		var line string
-		for ; batch.Bytes < maxSizePerStream; batch.Bytes += len(line) {
+		for ; stream.Size() < maxSizePerStream; batch.Bytes += len(line) {
 			now = time.Now()
 			line = flog.NewLog(logFmt, now)
 			stream.Entries = append(stream.Entries, logproto.Entry{
